@@ -76,34 +76,13 @@ func GetAllBooks() *[]models.Book {
 }
 
 func GetBookDetailsByISBN(isbn string) bool {
-	//fmt.Println("Isbn : " + isbn)
 	url := "https://openlibrary.org/api/books?bibkeys=ISBN:" + isbn + "&format=json&jscmd=data"
 	response, err := http.Get(url)
 
 	if err != nil {
 		log.Fatal(err)
+		return false
 	}
-
-	defer response.Body.Close()
-
-	// Read response body
-	// data, err := io.ReadAll(response.Body)
-	// if err != nil {
-	// 	//return nil, err
-	// 	return false
-	// }
-
-	// Unmarshal JSON into a map
-	// var result map[string]interface{}
-	// err = json.Unmarshal(data, &result)
-	// if err != nil {
-	// 	//return nil, err
-	// 	return false
-	// }
-	// return true
-
-	//fmt.Println("Response...............................")
-	//fmt.Println(response)
 
 	defer response.Body.Close()
 
@@ -114,18 +93,21 @@ func GetBookDetailsByISBN(isbn string) bool {
 		return false
 	}
 
-	// fmt.Println("Book Data...........................")
-	//fmt.Println(bookData)
-
 	bookInfo, ok := bookData["ISBN:"+isbn]
 	if !ok {
-		log.Println("No data found for ISBN::::", isbn)
+		log.Println("No data found for ISBN:", isbn)
 		return false
 	}
-	fmt.Println(bookInfo)
+
+	title, ok := bookInfo["title"].(string)
+	if !ok {
+		log.Println("Book title not found")
+		return false
+	}
+
 	authorInfo, ok := bookInfo["authors"]
 	if !ok {
-		log.Println("No data found for BookInfo:", isbn)
+		log.Println("No authors found for this book")
 		return false
 	}
 
@@ -135,8 +117,6 @@ func GetBookDetailsByISBN(isbn string) bool {
 		return false
 	}
 
-	//fmt.Println(authors)
-
 	var authorsName string
 	for i, author := range authors {
 		authorMap, ok := author.(map[string]interface{})
@@ -144,23 +124,26 @@ func GetBookDetailsByISBN(isbn string) bool {
 			log.Println("Unexpected format for an author entry")
 			continue
 		}
-
-		if authorname, exists := authorMap["name"].(string); exists {
-			authorsName = authorname
+		if authorName, exists := authorMap["name"].(string); exists {
 			if i > 0 {
-				authorname += " ,"
+				authorsName += ", "
 			}
+			authorsName += authorName
 		} else {
-			fmt.Println("Author name not found")
+			log.Println("Author name not found")
 		}
 	}
 
-	fmt.Println(authorsName) // author name
-	sourceTitleInfo, ok := bookInfo["title"]
-	if !ok {
-		log.Println("Unexpected format for book name data")
-		return false
+	newBook := models.Book{
+		ID:          uuid.New().String(),
+		Name:        title,
+		Author:      authorsName,
+		Category:    "",
+		Description: "",
 	}
-	fmt.Println(sourceTitleInfo) // book title
+
+	Books = append(Books, newBook)
+
+	fmt.Println("Book added successfully:", newBook)
 	return true
 }

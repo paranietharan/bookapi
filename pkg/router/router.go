@@ -18,6 +18,7 @@ func InitializeRoutes() *mux.Router {
 	router.HandleFunc("/books/{id}", handlers.UpdateBook).Methods("PUT")
 	router.HandleFunc("/books/{id}", handlers.DeleteBook).Methods("DELETE")
 
+	// endoint that add books when user passes only the isbn number
 	router.HandleFunc("/book/isbn/{id}", handlers.GetBookDetailsByISBN).Methods("GET")
 
 	return router
