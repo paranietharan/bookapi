@@ -78,25 +78,43 @@ func GetAllBooks() *[]models.Book {
 func GetBookDetailsByISBN(isbn string) bool {
 	//fmt.Println("Isbn : " + isbn)
 	url := "https://openlibrary.org/api/books?bibkeys=ISBN:" + isbn + "&format=json&jscmd=data"
-	res, err := http.Get(url)
+	response, err := http.Get(url)
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// fmt.Println("Response...............................")
-	// fmt.Println(res)
+	defer response.Body.Close()
 
-	defer res.Body.Close()
+	// Read response body
+	// data, err := io.ReadAll(response.Body)
+	// if err != nil {
+	// 	//return nil, err
+	// 	return false
+	// }
+
+	// Unmarshal JSON into a map
+	// var result map[string]interface{}
+	// err = json.Unmarshal(data, &result)
+	// if err != nil {
+	// 	//return nil, err
+	// 	return false
+	// }
+	// return true
+
+	//fmt.Println("Response...............................")
+	//fmt.Println(response)
+
+	defer response.Body.Close()
 
 	var bookData map[string]map[string]interface{}
-	err = json.NewDecoder(res.Body).Decode(&bookData)
+	err = json.NewDecoder(response.Body).Decode(&bookData)
 	if err != nil {
 		log.Fatal("Error decoding the JSON:", err)
 		return false
 	}
 
-	//fmt.Println("Book Data...........................")
+	// fmt.Println("Book Data...........................")
 	//fmt.Println(bookData)
 
 	bookInfo, ok := bookData["ISBN:"+isbn]
@@ -104,12 +122,45 @@ func GetBookDetailsByISBN(isbn string) bool {
 		log.Println("No data found for ISBN::::", isbn)
 		return false
 	}
-	//fmt.Println(bookInfo)
+	fmt.Println(bookInfo)
 	authorInfo, ok := bookInfo["authors"]
 	if !ok {
 		log.Println("No data found for BookInfo:", isbn)
 		return false
 	}
-	fmt.Println(authorInfo)
+
+	authors, ok := authorInfo.([]interface{})
+	if !ok {
+		log.Println("Unexpected format for authors data")
+		return false
+	}
+
+	//fmt.Println(authors)
+
+	var authorsName string
+	for i, author := range authors {
+		authorMap, ok := author.(map[string]interface{})
+		if !ok {
+			log.Println("Unexpected format for an author entry")
+			continue
+		}
+
+		if authorname, exists := authorMap["name"].(string); exists {
+			authorsName = authorname
+			if i > 0 {
+				authorname += " ,"
+			}
+		} else {
+			fmt.Println("Author name not found")
+		}
+	}
+
+	fmt.Println(authorsName) // author name
+	sourceTitleInfo, ok := bookInfo["title"]
+	if !ok {
+		log.Println("Unexpected format for book name data")
+		return false
+	}
+	fmt.Println(sourceTitleInfo) // book title
 	return true
 }
