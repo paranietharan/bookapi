@@ -98,3 +98,17 @@ func DeleteBook(w http.ResponseWriter, r *http.Request) {
 
 	utils.WriteResponse(w, http.StatusNoContent, nil)
 }
+
+// functions for get from external api
+func GetBookDetailsByISBN(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	isbn := vars["id"]
+
+	success := store.GetBookDetailsByISBN(isbn)
+	if !success {
+		utils.WriteErrorResponse(w, http.StatusNotFound, "Book not found")
+		return
+	}
+
+	utils.WriteResponse(w, http.StatusNoContent, nil)
+}

@@ -2,6 +2,10 @@ package store
 
 import (
 	"bookapi/pkg/models"
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
 	"strings"
 
 	"github.com/google/uuid"
@@ -69,4 +73,43 @@ func UpdateBookById(id string, updatedBook models.Book) bool {
 // GetAllBooks - Returns all books
 func GetAllBooks() *[]models.Book {
 	return &Books
+}
+
+func GetBookDetailsByISBN(isbn string) bool {
+	//fmt.Println("Isbn : " + isbn)
+	url := "https://openlibrary.org/api/books?bibkeys=ISBN:" + isbn + "&format=json&jscmd=data"
+	res, err := http.Get(url)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// fmt.Println("Response...............................")
+	// fmt.Println(res)
+
+	defer res.Body.Close()
+
+	var bookData map[string]map[string]interface{}
+	err = json.NewDecoder(res.Body).Decode(&bookData)
+	if err != nil {
+		log.Fatal("Error decoding the JSON:", err)
+		return false
+	}
+
+	//fmt.Println("Book Data...........................")
+	//fmt.Println(bookData)
+
+	bookInfo, ok := bookData["ISBN:"+isbn]
+	if !ok {
+		log.Println("No data found for ISBN::::", isbn)
+		return false
+	}
+	//fmt.Println(bookInfo)
+	authorInfo, ok := bookInfo["authors"]
+	if !ok {
+		log.Println("No data found for BookInfo:", isbn)
+		return false
+	}
+	fmt.Println(authorInfo)
+	return true
 }
