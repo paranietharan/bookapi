@@ -1,7 +1,7 @@
 package models
 
 type Book struct {
-	ID          int
+	ID          string
 	Name        string
 	Author      string
 	Category    string

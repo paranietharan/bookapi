@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )
 
@@ -19,13 +19,7 @@ func GetBooks(w http.ResponseWriter, r *http.Request) {
 
 func GetBookByID(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	idStr := vars["id"]
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid book ID")
-		return
-	}
-
+	id := vars["id"]
 	book := store.GetBookById(id)
 	if book == nil {
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Book not found")
@@ -36,37 +30,53 @@ func GetBookByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func CreateBook(w http.ResponseWriter, r *http.Request) {
-	var book models.Book
+	var bookDto models.BookDto
 
-	err := json.NewDecoder(r.Body).Decode(&book)
+	err := json.NewDecoder(r.Body).Decode(&bookDto)
 	if err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid Request Body")
 		return
+	}
+
+	book := models.Book{
+		ID:          uuid.New().String(),
+		Name:        bookDto.Name,
+		Author:      bookDto.Author,
+		Category:    bookDto.Category,
+		Description: bookDto.Description,
 	}
 
 	store.CreateNewBook(book)
 	utils.WriteResponse(w, http.StatusCreated, book)
 
-	fmt.Println("Book added : " + strconv.Itoa(book.ID) + "Book name : " + book.Name)
+	fmt.Println("Book added : " + book.ID + " | Book name : " + book.Name)
 }
 
 func UpdateBook(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	idStr := vars["id"]
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid book ID")
-		return
-	}
+	id := vars["id"]
 
-	var updatedBook models.Book
-	err = json.NewDecoder(r.Body).Decode(&updatedBook)
+	var bookDto models.BookDto
+	err := json.NewDecoder(r.Body).Decode(&bookDto)
 	if err != nil {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	updatedBook.ID = id
+	existingBook := store.GetBookById(id)
+	if existingBook == nil {
+		utils.WriteErrorResponse(w, http.StatusNotFound, "Book not found")
+		return
+	}
+
+	updatedBook := models.Book{
+		ID:          id,
+		Name:        bookDto.Name,
+		Author:      bookDto.Author,
+		Category:    bookDto.Category,
+		Description: bookDto.Description,
+	}
+
 	success := store.UpdateBookById(id, updatedBook)
 	if !success {
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Book not found")
@@ -78,12 +88,7 @@ func UpdateBook(w http.ResponseWriter, r *http.Request) {
 
 func DeleteBook(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	idStr := vars["id"]
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid book ID")
-		return
-	}
+	id := vars["id"]
 
 	success := store.DeleteBookById(id)
 	if !success {
