@@ -1,24 +1,29 @@
 package store
 
-import "bookapi/pkg/models"
+import (
+	"bookapi/pkg/models"
+	"strings"
+
+	"github.com/google/uuid"
+)
 
 var Books []models.Book = []models.Book{
 	{
-		ID:          1,
+		ID:          uuid.New().String(),
 		Name:        "The Catcher in the Rye",
 		Author:      "J.D. Salinger",
 		Category:    "Fiction",
 		Description: "A story about a young man’s journey of self-discovery.",
 	},
 	{
-		ID:          2,
+		ID:          uuid.New().String(),
 		Name:        "To Kill a Mockingbird",
 		Author:      "Harper Lee",
 		Category:    "Fiction",
 		Description: "A novel about the moral growth of a young girl in the Deep South.",
 	},
 	{
-		ID:          3,
+		ID:          uuid.New().String(),
 		Name:        "1984",
 		Author:      "George Orwell",
 		Category:    "Dystopian",
@@ -27,39 +32,41 @@ var Books []models.Book = []models.Book{
 }
 
 func CreateNewBook(book models.Book) {
+	book.ID = uuid.New().String()
 	Books = append(Books, book)
 }
 
-func DeleteBookById(id int) bool {
+func DeleteBookById(id string) bool {
 	for i, book := range Books {
-		if book.ID == id {
+		if strings.EqualFold(book.ID, id) {
 			Books = append(Books[:i], Books[i+1:]...)
 			return true
 		}
 	}
-
 	return false
 }
 
-func GetBookById(id int) *models.Book {
-	for _, book := range Books {
-		if book.ID == id {
-			return &book
+func GetBookById(id string) *models.Book {
+	for i := range Books {
+		if Books[i].ID == id {
+			return &Books[i]
 		}
 	}
 	return nil
 }
 
-func UpdateBookById(id int, updatedBook models.Book) bool {
-	for _, book := range Books {
-		if book.ID == id {
-			Books[id] = updatedBook
+func UpdateBookById(id string, updatedBook models.Book) bool {
+	for i := range Books {
+		if Books[i].ID == id {
+			updatedBook.ID = id
+			Books[i] = updatedBook
 			return true
 		}
 	}
 	return false
 }
 
+// GetAllBooks - Returns all books
 func GetAllBooks() *[]models.Book {
 	return &Books
 }
