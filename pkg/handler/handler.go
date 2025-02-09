@@ -47,7 +47,10 @@ func CreateBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	store.CreateNewBook(book)
-	utils.WriteResponse(w, http.StatusCreated, book)
+
+	var res models.Response
+	res.Success = true
+	utils.WriteResponse(w, http.StatusCreated, res)
 
 	fmt.Println("Book added : " + book.ID + " | Book name : " + book.Name)
 }
@@ -96,7 +99,9 @@ func DeleteBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteResponse(w, http.StatusNoContent, nil)
+	var res models.Response
+	res.Success = true
+	utils.WriteResponse(w, http.StatusNoContent, res)
 }
 
 // functions for get from external api
