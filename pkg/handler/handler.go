@@ -86,7 +86,7 @@ func UpdateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteResponse(w, http.StatusOK, updatedBook)
+	utils.WriteResponse(w, http.StatusOK, updatedBook.ToBookDto())
 }
 
 func DeleteBook(w http.ResponseWriter, r *http.Request) {

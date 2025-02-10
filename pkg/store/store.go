@@ -68,28 +68,42 @@ func GetBookById(id string) *models.Book {
 }
 
 func UpdateBookById(id string, updatedBook models.Book) bool {
-	if GetBookById(id) == nil {
+	existingBook := GetBookById(id)
+	if existingBook == nil {
 		log.Println("Book not found, update failed")
 		return false
 	}
 
 	updatedBook.ID = id
-	CreateNewBook(updatedBook)
+
+	bookJSON, err := json.Marshal(updatedBook)
+	if err != nil {
+		log.Println("Error marshalling updated book:", err)
+		return false
+	}
+
+	err = config.RedisClient.Set(ctx, id, bookJSON, 0).Err()
+	if err != nil {
+		log.Println("Failed to update book in Redis:", err)
+		return false
+	}
+
+	log.Println("Book updated successfully in Redis")
 	return true
 }
 
-func GetAllBooks() []models.Book {
+func GetAllBooks() []models.BookDto {
 	ids, err := config.RedisClient.SMembers(ctx, "books:all").Result()
 	if err != nil {
 		log.Println("Failed to retrieve book IDs from Redis:", err)
 		return nil
 	}
 
-	var books []models.Book
+	var books []models.BookDto
 	for _, id := range ids {
 		book := GetBookById(id)
 		if book != nil {
-			books = append(books, *book)
+			books = append(books, book.ToBookDto())
 		}
 	}
 
