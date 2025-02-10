@@ -4,9 +4,10 @@ import (
 	"bookapi/pkg/config"
 	handlers "bookapi/pkg/handler"
 	"bookapi/pkg/logger"
+	"context"
 	"fmt"
-	"log"
 	"net/http"
+	"sync"
 
 	"github.com/gorilla/mux"
 )
@@ -29,10 +30,33 @@ func InitializeRoutes() *mux.Router {
 }
 
 func StartServer() {
-	logger.StartLogListener()
+	var wg sync.WaitGroup
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Start loging function
+	logger.StartLogListener(ctx, &wg)
 
 	router := InitializeRoutes()
 	http.Handle("/", router)
-	fmt.Println("Book api server started.......")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+
+	// create goroutines & Start the server
+	server := &http.Server{Addr: ":8080"}
+
+	fmt.Println("Server started on port 8080...")
+	go func() {
+		if err := server.ListenAndServe(); err != nil {
+			fmt.Println("Server stopped:", err)
+		}
+	}()
+
+	// Graceful Shutdown
+	waitForShutdown(cancel, &wg)
+}
+
+func waitForShutdown(cancel context.CancelFunc, wg *sync.WaitGroup) {
+	fmt.Println("Press Enter to shut down...")
+	fmt.Scanln()
+	cancel()
+	wg.Wait()
+	fmt.Println("Shutdown complete.")
 }

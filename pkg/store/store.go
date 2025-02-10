@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -36,6 +37,7 @@ func CreateNewBook(book models.Book) {
 	}
 
 	books = append(books, book) // slice
+	book.LastAccessTime = time.Now()
 
 	fmt.Println("Book saved with ID:", book.ID)
 }
@@ -76,6 +78,7 @@ func GetBookById(id string) *models.Book {
 		log.Println("Error unmarshalling book data:", err)
 		return nil
 	}
+	book.LastAccessTime = time.Now()
 	return &book
 }
 
@@ -107,6 +110,7 @@ func UpdateBookById(id string, updatedBook models.Book) bool {
 			break
 		}
 	}
+	updatedBook.LastAccessTime = time.Now()
 	log.Println("Book updated successfully in slice")
 
 	return true
@@ -124,6 +128,7 @@ func GetAllBooks() []models.BookDto {
 		book := GetBookById(id)
 		if book != nil {
 			books = append(books, book.ToBookDto())
+			book.LastAccessTime = time.Now()
 		}
 	}
 
@@ -199,6 +204,7 @@ func GetBookDetailsByISBN(isbn string) bool {
 
 	books = append(books, newBook)
 	CreateNewBook(newBook)
+	newBook.LastAccessTime = time.Now()
 
 	fmt.Println("Book added successfully:", newBook)
 	return true
