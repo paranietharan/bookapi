@@ -7,9 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 
 	"github.com/google/uuid"
 )
+
+var books []models.Book
 
 var ctx = context.Background()
 
@@ -32,6 +35,8 @@ func CreateNewBook(book models.Book) {
 		log.Printf("Failed to add book ID to Redis set: %v", err)
 	}
 
+	books = append(books, book) // slice
+
 	fmt.Println("Book saved with ID:", book.ID)
 }
 
@@ -46,6 +51,13 @@ func DeleteBookById(id string) bool {
 	if err != nil {
 		log.Println("Error removing book ID from Redis set:", err)
 		return false
+	}
+
+	for i, book := range books {
+		if book.ID == id {
+			books = append(books[:i], books[i+1:]...)
+			break
+		}
 	}
 
 	return true
@@ -87,8 +99,16 @@ func UpdateBookById(id string, updatedBook models.Book) bool {
 		log.Println("Failed to update book in Redis:", err)
 		return false
 	}
-
 	log.Println("Book updated successfully in Redis")
+
+	for i, book := range books {
+		if book.ID == id {
+			books[i] = updatedBook
+			break
+		}
+	}
+	log.Println("Book updated successfully in slice")
+
 	return true
 }
 
@@ -108,4 +128,78 @@ func GetAllBooks() []models.BookDto {
 	}
 
 	return books
+}
+
+func GetBookDetailsByISBN(isbn string) bool {
+	url := "https://openlibrary.org/api/books?bibkeys=ISBN:" + isbn + "&format=json&jscmd=data"
+	response, err := http.Get(url)
+
+	if err != nil {
+		log.Fatal(err)
+		return false
+	}
+
+	defer response.Body.Close()
+
+	var bookData map[string]map[string]interface{}
+	err = json.NewDecoder(response.Body).Decode(&bookData)
+	if err != nil {
+		log.Fatal("Error decoding the JSON:", err)
+		return false
+	}
+
+	bookInfo, ok := bookData["ISBN:"+isbn]
+	if !ok {
+		log.Println("No data found for ISBN:", isbn)
+		return false
+	}
+
+	title, ok := bookInfo["title"].(string)
+	if !ok {
+		log.Println("Book title not found")
+		return false
+	}
+
+	authorInfo, ok := bookInfo["authors"]
+	if !ok {
+		log.Println("No authors found for this book")
+		return false
+	}
+
+	authors, ok := authorInfo.([]interface{})
+	if !ok {
+		log.Println("Unexpected format for authors data")
+		return false
+	}
+
+	var authorsName string
+	for i, author := range authors {
+		authorMap, ok := author.(map[string]interface{})
+		if !ok {
+			log.Println("Unexpected format for an author entry")
+			continue
+		}
+		if authorName, exists := authorMap["name"].(string); exists {
+			if i > 0 {
+				authorsName += ", "
+			}
+			authorsName += authorName
+		} else {
+			log.Println("Author name not found")
+		}
+	}
+
+	newBook := models.Book{
+		ID:          uuid.New().String(),
+		Name:        title,
+		Author:      authorsName,
+		Category:    "",
+		Description: "",
+	}
+
+	books = append(books, newBook)
+	CreateNewBook(newBook)
+
+	fmt.Println("Book added successfully:", newBook)
+	return true
 }
