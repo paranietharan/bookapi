@@ -3,6 +3,7 @@ package router
 import (
 	"bookapi/pkg/config"
 	handlers "bookapi/pkg/handler"
+	"bookapi/pkg/logger"
 	"fmt"
 	"log"
 	"net/http"
@@ -28,6 +29,8 @@ func InitializeRoutes() *mux.Router {
 }
 
 func StartServer() {
+	logger.StartLogListener()
+
 	router := InitializeRoutes()
 	http.Handle("/", router)
 	fmt.Println("Book api server started.......")
