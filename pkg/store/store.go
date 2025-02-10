@@ -1,12 +1,13 @@
 package store
 
 import (
+	"bookapi/pkg/config"
 	"bookapi/pkg/models"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
-	"strings"
 
 	"github.com/google/uuid"
 )
@@ -35,44 +36,74 @@ var Books []models.Book = []models.Book{
 	},
 }
 
+var ctx = context.Background()
+
 func CreateNewBook(book models.Book) {
-	book.ID = uuid.New().String()
-	Books = append(Books, book)
+	bookJSON, err := json.Marshal(book)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	err = config.RedisClient.Set(ctx, book.ID, bookJSON, 0).Err()
+	if err != nil {
+		log.Printf("Failed to save book to Redis: %v", err)
+	}
+
+	fmt.Printf("Book saved ID: %s", book.ID)
 }
 
 func DeleteBookById(id string) bool {
-	for i, book := range Books {
-		if strings.EqualFold(book.ID, id) {
-			Books = append(Books[:i], Books[i+1:]...)
-			return true
-		}
+	_, err := config.RedisClient.Del(ctx, id).Result()
+
+	if err != nil {
+		fmt.Println("Delete error")
+		fmt.Println(err)
+		return false
 	}
-	return false
+
+	return true
 }
 
 func GetBookById(id string) *models.Book {
-	for i := range Books {
-		if Books[i].ID == id {
-			return &Books[i]
-		}
+	data, err := config.RedisClient.Get(ctx, id).Bytes()
+	if err != nil {
+		log.Printf("Book not found in Redis: %v", err)
+		return nil
 	}
-	return nil
+
+	var book models.Book
+	err = json.Unmarshal(data, &book)
+	if err != nil {
+		return nil
+	}
+	return &book
 }
 
 func UpdateBookById(id string, updatedBook models.Book) bool {
-	for i := range Books {
-		if Books[i].ID == id {
-			updatedBook.ID = id
-			Books[i] = updatedBook
-			return true
-		}
+	book := GetBookById(id)
+
+	if book == nil {
+		fmt.Printf("book not found")
 	}
-	return false
+
+	CreateNewBook(updatedBook)
+	return true
 }
 
-// GetAllBooks - Returns all books
-func GetAllBooks() *[]models.Book {
-	return &Books
+func GetAllBooks() []models.Book {
+	ids, err := config.RedisClient.SMembers(ctx, "books:all").Result()
+	if err != nil {
+		log.Println("Failed to retrieve book IDs from Redis:", err)
+		return nil
+	}
+
+	var books []models.Book
+	for _, id := range ids {
+		book := GetBookById(id)
+		books = append(books, *book)
+	}
+
+	return books
 }
 
 func GetBookDetailsByISBN(isbn string) bool {
