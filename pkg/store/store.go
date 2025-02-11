@@ -209,3 +209,39 @@ func GetBookDetailsByISBN(isbn string) bool {
 	fmt.Println("Book added successfully:", newBook)
 	return true
 }
+
+// clean up routines
+
+func StartBookCleanup(interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	go func() {
+		for range ticker.C {
+			cleanupOldBooks()
+		}
+	}()
+}
+
+// Function 2 delete books older than 10 mins
+func cleanupOldBooks() {
+	bookIDs, err := config.RedisClient.SMembers(ctx, "books:all").Result()
+	if err != nil {
+		log.Println("Failed to retrieve book IDs:", err)
+		return
+	}
+
+	currentTime := time.Now().Unix()
+	for _, bookID := range bookIDs {
+		timestamp, err := config.RedisClient.Get(ctx, "timestamp:"+bookID).Int64()
+		if err != nil {
+			log.Printf("Error retrieving timestamp for book %s: %v", bookID, err)
+			continue
+		}
+
+		if currentTime-timestamp > 600 {
+			success := DeleteBookById(bookID)
+			if success {
+				log.Printf("Deleted old book: %s\n", bookID)
+			}
+		}
+	}
+}

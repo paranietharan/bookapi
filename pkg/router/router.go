@@ -39,7 +39,8 @@ func StartServer() {
 	router := InitializeRoutes()
 	http.Handle("/", router)
 
-	// create goroutines & Start the server
+	// create goroutines &
+	// Start the server
 	server := &http.Server{Addr: ":8080"}
 
 	fmt.Println("Server started on port 8080...")
