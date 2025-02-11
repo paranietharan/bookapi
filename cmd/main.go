@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	store.StartBookCleanup(1 * time.Minute)
+	store.StartBookCleanup(40 * time.Second)
 
 	router.StartServer()
 }
