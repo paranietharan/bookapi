@@ -47,7 +47,10 @@ func CreateBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	store.CreateNewBook(book)
-	utils.WriteResponse(w, http.StatusCreated, book)
+
+	var res models.Response
+	res.Success = true
+	utils.WriteResponse(w, http.StatusCreated, res)
 
 	fmt.Println("Book added : " + book.ID + " | Book name : " + book.Name)
 }
@@ -83,7 +86,7 @@ func UpdateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteResponse(w, http.StatusOK, updatedBook)
+	utils.WriteResponse(w, http.StatusOK, updatedBook.ToBookDto())
 }
 
 func DeleteBook(w http.ResponseWriter, r *http.Request) {
@@ -91,6 +94,22 @@ func DeleteBook(w http.ResponseWriter, r *http.Request) {
 	id := vars["id"]
 
 	success := store.DeleteBookById(id)
+	if !success {
+		utils.WriteErrorResponse(w, http.StatusNotFound, "Book not found")
+		return
+	}
+
+	var res models.Response
+	res.Success = true
+	utils.WriteResponse(w, http.StatusNoContent, res)
+}
+
+// // functions for get from external api
+func GetBookDetailsByISBN(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	isbn := vars["id"]
+
+	success := store.GetBookDetailsByISBN(isbn)
 	if !success {
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Book not found")
 		return
