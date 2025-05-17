@@ -8,26 +8,33 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 )
 
 var books []models.Book
-
 var ctx = context.Background()
 
 func CreateNewBook(book models.Book) {
 	book.ID = uuid.New().String()
+
 	bookJSON, err := json.Marshal(book)
 	if err != nil {
 		log.Println("Error marshalling book:", err)
 		return
 	}
 
+	// Store book in Redis
 	err = config.RedisClient.Set(ctx, book.ID, bookJSON, 0).Err()
 	if err != nil {
 		log.Printf("Failed to save book to Redis: %v", err)
 		return
+	}
+
+	err = config.RedisClient.Set(ctx, "timestamp:"+book.ID, book.LastAccessTime.Unix(), 0).Err()
+	if err != nil {
+		log.Printf("Failed to store book timestamp: %v", err)
 	}
 
 	err = config.RedisClient.SAdd(ctx, "books:all", book.ID).Err()
@@ -35,13 +42,15 @@ func CreateNewBook(book models.Book) {
 		log.Printf("Failed to add book ID to Redis set: %v", err)
 	}
 
-	books = append(books, book) // slice
+	// Add book to slice
+	books = append(books, book)
 
 	fmt.Println("Book saved with ID:", book.ID)
 }
 
-func DeleteBookById(id string) bool {
-	_, err := config.RedisClient.Del(ctx, id).Result()
+// Delete book from Redis only
+func DeleteBookByIdRedis(id string) bool {
+	_, err := config.RedisClient.Del(ctx, id, "timestamp:"+id).Result()
 	if err != nil {
 		log.Println("Error deleting book from Redis:", err)
 		return false
@@ -53,16 +62,28 @@ func DeleteBookById(id string) bool {
 		return false
 	}
 
-	for i, book := range books {
-		if book.ID == id {
+	return true
+}
+
+func DeleteBookById(id string) bool {
+	// delete in redis
+	del := DeleteBookByIdRedis(id)
+	if !del {
+		fmt.Println("Deleting failed: some time it may not in redis")
+	}
+
+	// delete from the slice
+	for i, v := range books {
+		if v.ID == id {
 			books = append(books[:i], books[i+1:]...)
-			break
+			fmt.Println("Book deleted successfully")
 		}
 	}
 
 	return true
 }
 
+// Retrieve book from Redis & update last access time
 func GetBookById(id string) *models.Book {
 	data, err := config.RedisClient.Get(ctx, id).Bytes()
 	if err != nil {
@@ -76,9 +97,13 @@ func GetBookById(id string) *models.Book {
 		log.Println("Error unmarshalling book data:", err)
 		return nil
 	}
+
+	config.RedisClient.Set(ctx, "timestamp:"+book.ID, book.LastAccessTime.Unix(), 0)
+
 	return &book
 }
 
+// Update book details
 func UpdateBookById(id string, updatedBook models.Book) bool {
 	existingBook := GetBookById(id)
 	if existingBook == nil {
@@ -87,7 +112,6 @@ func UpdateBookById(id string, updatedBook models.Book) bool {
 	}
 
 	updatedBook.ID = id
-
 	bookJSON, err := json.Marshal(updatedBook)
 	if err != nil {
 		log.Println("Error marshalling updated book:", err)
@@ -99,7 +123,8 @@ func UpdateBookById(id string, updatedBook models.Book) bool {
 		log.Println("Failed to update book in Redis:", err)
 		return false
 	}
-	log.Println("Book updated successfully in Redis")
+
+	config.RedisClient.Set(ctx, "timestamp:"+id, updatedBook.LastAccessTime.Unix(), 0)
 
 	for i, book := range books {
 		if book.ID == id {
@@ -107,44 +132,37 @@ func UpdateBookById(id string, updatedBook models.Book) bool {
 			break
 		}
 	}
-	log.Println("Book updated successfully in slice")
 
+	log.Println("Book updated successfully")
 	return true
 }
 
 func GetAllBooks() []models.BookDto {
-	ids, err := config.RedisClient.SMembers(ctx, "books:all").Result()
-	if err != nil {
-		log.Println("Failed to retrieve book IDs from Redis:", err)
-		return nil
+	var bookDtos []models.BookDto
+	for _, v := range books {
+		bookDtos = append(bookDtos, v.ToBookDto())
+
+		// change the last access time in redis
+		config.RedisClient.Set(ctx, "timestamp:"+v.ID, v.LastAccessTime.Unix(), 0)
 	}
 
-	var books []models.BookDto
-	for _, id := range ids {
-		book := GetBookById(id)
-		if book != nil {
-			books = append(books, book.ToBookDto())
-		}
-	}
-
-	return books
+	return bookDtos
 }
 
+// Fetch book details using ISBN
 func GetBookDetailsByISBN(isbn string) bool {
 	url := "https://openlibrary.org/api/books?bibkeys=ISBN:" + isbn + "&format=json&jscmd=data"
 	response, err := http.Get(url)
-
 	if err != nil {
 		log.Fatal(err)
 		return false
 	}
-
 	defer response.Body.Close()
 
 	var bookData map[string]map[string]interface{}
 	err = json.NewDecoder(response.Body).Decode(&bookData)
 	if err != nil {
-		log.Fatal("Error decoding the JSON:", err)
+		log.Fatal("Error decoding JSON:", err)
 		return false
 	}
 
@@ -176,7 +194,6 @@ func GetBookDetailsByISBN(isbn string) bool {
 	for i, author := range authors {
 		authorMap, ok := author.(map[string]interface{})
 		if !ok {
-			log.Println("Unexpected format for an author entry")
 			continue
 		}
 		if authorName, exists := authorMap["name"].(string); exists {
@@ -184,17 +201,16 @@ func GetBookDetailsByISBN(isbn string) bool {
 				authorsName += ", "
 			}
 			authorsName += authorName
-		} else {
-			log.Println("Author name not found")
 		}
 	}
 
 	newBook := models.Book{
-		ID:          uuid.New().String(),
-		Name:        title,
-		Author:      authorsName,
-		Category:    "",
-		Description: "",
+		ID:             uuid.New().String(),
+		Name:           title,
+		Author:         authorsName,
+		Category:       "",
+		Description:    "",
+		LastAccessTime: time.Now(),
 	}
 
 	books = append(books, newBook)
@@ -202,4 +218,41 @@ func GetBookDetailsByISBN(isbn string) bool {
 
 	fmt.Println("Book added successfully:", newBook)
 	return true
+}
+
+// Cleanup Goroutine - Remove books not accessed for 10 minutes
+func StartBookCleanup(interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	go func() {
+		for range ticker.C {
+			cleanupOldBooks()
+			fmt.Println("Celen Up completed")
+		}
+	}()
+}
+
+// Function to delete books not accessed in 10 mins
+func cleanupOldBooks() {
+	bookIDs, err := config.RedisClient.SMembers(ctx, "books:all").Result()
+	if err != nil {
+		log.Println("Failed to retrieve book IDs:", err)
+		return
+	}
+
+	currentTime := time.Now().Unix()
+	for _, bookID := range bookIDs {
+		timestamp, err := config.RedisClient.Get(ctx, "timestamp:"+bookID).Int64()
+		if err != nil {
+			log.Printf("Error retrieving timestamp for book %s: %v", bookID, err)
+			continue
+		}
+
+		// del when 20s or more access time items
+		if currentTime-timestamp > 20 {
+			success := DeleteBookByIdRedis(bookID)
+			if success {
+				log.Printf("Removed inactive book from Redis: %s\n", bookID)
+			}
+		}
+	}
 }

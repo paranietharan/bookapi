@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bookapi/pkg/logger"
 	"bookapi/pkg/models"
 	"bookapi/pkg/store"
 	"bookapi/pkg/utils"
@@ -53,6 +54,7 @@ func CreateBook(w http.ResponseWriter, r *http.Request) {
 	utils.WriteResponse(w, http.StatusCreated, res)
 
 	fmt.Println("Book added : " + book.ID + " | Book name : " + book.Name)
+	logger.LogAction("POST", book.ID)
 }
 
 func UpdateBook(w http.ResponseWriter, r *http.Request) {
@@ -87,6 +89,7 @@ func UpdateBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utils.WriteResponse(w, http.StatusOK, updatedBook.ToBookDto())
+	logger.LogAction("PUT", id)
 }
 
 func DeleteBook(w http.ResponseWriter, r *http.Request) {
@@ -102,6 +105,7 @@ func DeleteBook(w http.ResponseWriter, r *http.Request) {
 	var res models.Response
 	res.Success = true
 	utils.WriteResponse(w, http.StatusNoContent, res)
+	logger.LogAction("DELETE", id)
 }
 
 // // functions for get from external api
